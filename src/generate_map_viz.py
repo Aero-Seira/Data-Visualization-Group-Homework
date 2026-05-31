@@ -157,8 +157,10 @@ html = r"""<!DOCTYPE html>
 .rank-list{max-height:480px;overflow-y:auto}
 .rank-row{display:flex;align-items:center;gap:8px;padding:6px 8px;border-bottom:1px solid #fafafa;font-size:12px;transition:background 0.15s}
 .rank-row:hover{background:#f0f0ff;border-radius:6px}
-.rank-num{width:22px;height:22px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0;background:#555}
-.rank-num.t3{background:var(--c-blue);color:#0a0e27}
+.rank-badge{width:22px;height:22px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:11px;color:#fff;flex-shrink:0;background:#e0e0e0}
+.rank-badge.top1{background:#ffd740;color:#0a0e27}
+.rank-badge.top2{background:#b0bec5;color:#0a0e27}
+.rank-badge.top3{background:#bcaaa4;color:#0a0e27}
 .rank-name{flex:1;font-weight:500;color:#666}
 .rank-val{font-weight:600;color:var(--c-primary);white-space:nowrap;font-size:11px}
 .rank-bar{height:5px;border-radius:3px;flex-shrink:0}
@@ -256,7 +258,7 @@ function drawRankList(){
   const entries=Object.values(COUNTRY_DATA).map(d=>({...d,papers:currentMode==="125"?d.papers_125:currentMode==="135"?d.papers_135:d.papers_sum})).sort((a,b)=>b.papers-a.papers);
   const mp=entries[0]?.papers||1;
   c.selectAll(".rank-row").data(entries).join("div").attr("class","rank-row")
-    .html((d,i)=>`<span class="rank-num${i<3?' t3':''}">${i+1}</span><span class="rank-name">${d.name_cn}</span><span class="rank-val">${d.papers.toLocaleString()} 篇</span><span class="rank-bar" style="width:${Math.max(d.papers/mp*80,3)}px;background:${i<3?'#4fc3f7':'#555'}"></span>`);
+    .html((d,i)=>`<span class="rank-badge${i<3?' top'+(i+1):''}">${i+1}</span><span class="rank-name">${d.name_cn}</span><span class="rank-val">${d.papers.toLocaleString()} 篇</span><span class="rank-bar" style="width:${Math.max(d.papers/mp*80,3)}px;background:${i<3?'#4fc3f7':'#555'}"></span>`);
 }
 
 function showTooltip(e,h){d3.select("#tooltip").html(h).style("opacity",1).style("left",(e.pageX+14)+"px").style("top",(e.pageY-10)+"px")}

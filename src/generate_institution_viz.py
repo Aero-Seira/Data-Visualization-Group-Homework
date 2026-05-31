@@ -1,75 +1,108 @@
 """
 生成合作机构排名对比图：中国机构 Top15 vs 中东欧机构 Top15。
-横向条形图，带排名变化指示。
+数据源：使用完整明细文件（125/135 分别），而非截断的合并排名文件。
 """
 import json, os
 import pandas as pd
 
 from common import (
-    BASE_DIR, DIR_INSTITUTION, CN_TO_ISO, TECH_BLUE_THEME as T,
+    BASE_DIR, DIR_INSTITUTION, CEE_EXACT, TECH_BLUE_THEME as T,
     read_excel_safe, write_html, write_common_css, OUTPUT_DIR,
 )
 
 write_common_css()
 
-# ── 读取中国机构 ──────────────────────────────────────────────
-cn_path = os.path.join(DIR_INSTITUTION, "125-135中国机构所发合作文章数量.xlsx")
-df_cn = read_excel_safe(cn_path, description="中国机构")
-cn_insts = []
-for _, row in df_cn.iterrows():
-    try:
-        cn_insts.append({
-            "rank_125": int(row.iloc[6]) if pd.notna(row.iloc[6]) else None,
-            "name": str(row.iloc[1]).strip(),
-            "p135": int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0,
-            "p125": int(row.iloc[4]) if pd.notna(row.iloc[4]) else 0,
-            "delta": int(row.iloc[7]) if pd.notna(row.iloc[7]) else 0,
-        })
-    except (ValueError, IndexError):
-        continue
+# ── 读取中国机构完整明细 ──────────────────────────────────────
+df_cn125 = read_excel_safe(
+    os.path.join(DIR_INSTITUTION, "125中国机构.xlsx"),
+    description="125中国机构明细",
+)
+df_cn135 = read_excel_safe(
+    os.path.join(DIR_INSTITUTION, "135中国机构.xlsx"),
+    description="135中国机构明细",
+)
 
-cn_insts.sort(key=lambda x: x["p135"] + x["p125"], reverse=True)
-cn_top = cn_insts[:15]
+cn_all = {}
+for _, row in df_cn125.iterrows():
+    en = str(row.iloc[0]).strip()
+    cn = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else en
+    cnt = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
+    cn_all[cn] = {"name": cn, "name_en": en, "p125": cnt, "p135": 0}
 
-# Compute ranks within dataset
-cn_by_p125 = sorted(cn_insts, key=lambda x: x["p125"], reverse=True)
-cn_by_p135 = sorted(cn_insts, key=lambda x: x["p135"], reverse=True)
-cn_r135 = {inst["name"]: i+1 for i, inst in enumerate(cn_by_p135)}
-cn_r125 = {inst["name"]: i+1 for i, inst in enumerate(cn_by_p125)}
-for inst in cn_insts:
-    inst["rank_135"] = cn_r135[inst["name"]]
-    inst["rank_change"] = cn_r125[inst["name"]] - cn_r135[inst["name"]]
+for _, row in df_cn135.iterrows():
+    en = str(row.iloc[0]).strip()
+    cn = str(row.iloc[1]).strip() if pd.notna(row.iloc[1]) else en
+    cnt = int(row.iloc[2]) if pd.notna(row.iloc[2]) else 0
+    if cn in cn_all:
+        cn_all[cn]["p135"] = cnt
+    else:
+        cn_all[cn] = {"name": cn, "name_en": en, "p125": 0, "p135": cnt}
 
-# ── 读取中东欧机构 ────────────────────────────────────────────
-cee_path = os.path.join(DIR_INSTITUTION, "125-135中东欧机构所发合作文章数量.xlsx")
-df_cee = read_excel_safe(cee_path, description="中东欧机构")
-cee_insts = []
-for _, row in df_cee.iterrows():
-    try:
-        cee_insts.append({
-            "name": str(row.iloc[1]).strip(),
-            "country": str(row.iloc[2]).strip(),
-            "p135": int(row.iloc[3]) if pd.notna(row.iloc[3]) else 0,
-            "p125": int(row.iloc[5]) if pd.notna(row.iloc[5]) else 0,
-            "rank_125": int(row.iloc[7]) if pd.notna(row.iloc[7]) else None,
-            "delta": int(row.iloc[9]) if pd.notna(row.iloc[9]) else 0,
-        })
-    except (ValueError, IndexError):
-        continue
+cn_full = sorted(cn_all.values(), key=lambda x: x["p125"] + x["p135"], reverse=True)
+for i, inst in enumerate(cn_full):
+    inst["rank_total"] = i + 1
 
-cee_insts.sort(key=lambda x: x["p135"] + x["p125"], reverse=True)
-cee_top = cee_insts[:15]
+cn_by_p125 = sorted(cn_full, key=lambda x: x["p125"], reverse=True)
+cn_by_p135 = sorted(cn_full, key=lambda x: x["p135"], reverse=True)
+for i, inst in enumerate(cn_by_p125):
+    inst["rank_125"] = i + 1
+for i, inst in enumerate(cn_by_p135):
+    inst["rank_135"] = i + 1
+for inst in cn_full:
+    inst["rank_change"] = inst["rank_125"] - inst["rank_135"]
+    inst["delta"] = inst["p135"] - inst["p125"]
 
-# Compute ranks within dataset
-cee_by_p125 = sorted(cee_insts, key=lambda x: x["p125"], reverse=True)
-cee_by_p135 = sorted(cee_insts, key=lambda x: x["p135"], reverse=True)
-cee_r135 = {inst["name"]: i+1 for i, inst in enumerate(cee_by_p135)}
-cee_r125 = {inst["name"]: i+1 for i, inst in enumerate(cee_by_p125)}
-for inst in cee_insts:
-    inst["rank_135"] = cee_r135[inst["name"]]
-    inst["rank_change"] = cee_r125[inst["name"]] - cee_r135[inst["name"]]
+cn_top = cn_full[:15]
 
-print(f"Chinese institutions: {len(cn_top)}, CEE institutions: {len(cee_top)}")
+# ── 读取中东欧机构完整明细 ──────────────────────────────────
+df_cee125 = read_excel_safe(
+    os.path.join(DIR_INSTITUTION, "125中东欧机构.xlsx"),
+    description="125中东欧机构明细",
+)
+df_cee135 = read_excel_safe(
+    os.path.join(DIR_INSTITUTION, "135中东欧机构.xlsx"),
+    description="135中东欧机构明细",
+)
+
+cee_all = {}
+for _, row in df_cee125.iterrows():
+    en = str(row.iloc[1]).strip()
+    cn = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else en
+    cnt = int(row.iloc[3]) if pd.notna(row.iloc[3]) else 0
+    cty_en = str(row.iloc[5]).strip() if pd.notna(row.iloc[5]) else ""
+    cty_cn = CEE_EXACT.get(cty_en.upper(), cty_en)
+    cee_all[en] = {"name": cn, "name_en": en, "country": cty_cn, "p125": cnt, "p135": 0}
+
+for _, row in df_cee135.iterrows():
+    en = str(row.iloc[1]).strip()
+    cn = str(row.iloc[2]).strip() if pd.notna(row.iloc[2]) else en
+    cnt = int(row.iloc[3]) if pd.notna(row.iloc[3]) else 0
+    cty_en = str(row.iloc[5]).strip() if pd.notna(row.iloc[5]) else ""
+    cty_cn = row.iloc[6] if len(row) > 6 and pd.notna(row.iloc[6]) else CEE_EXACT.get(cty_en.upper(), cty_en)
+    if en in cee_all:
+        cee_all[en]["p135"] = cnt
+    else:
+        cee_all[en] = {"name": cn, "name_en": en, "country": str(cty_cn), "p125": 0, "p135": cnt}
+
+cee_full = sorted(cee_all.values(), key=lambda x: x["p125"] + x["p135"], reverse=True)
+for i, inst in enumerate(cee_full):
+    inst["rank_total"] = i + 1
+
+cee_by_p125 = sorted(cee_full, key=lambda x: x["p125"], reverse=True)
+cee_by_p135 = sorted(cee_full, key=lambda x: x["p135"], reverse=True)
+for i, inst in enumerate(cee_by_p125):
+    inst["rank_125"] = i + 1
+for i, inst in enumerate(cee_by_p135):
+    inst["rank_135"] = i + 1
+for inst in cee_full:
+    inst["rank_change"] = inst["rank_125"] - inst["rank_135"]
+    inst["delta"] = inst["p135"] - inst["p125"]
+
+cee_top = cee_full[:15]
+
+print(f"CN institutions (full): {len(cn_full)}, CEE institutions (full): {len(cee_full)}")
+print(f"CN top 15: {[d['name'] for d in cn_top]}")
+print(f"CEE top 15: {[d['name'] for d in cee_top]}")
 
 html = r"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -79,24 +112,60 @@ html = r"""<!DOCTYPE html>
 <script src="https://d3js.org/d3.v7.min.js"></script>
 <link rel="stylesheet" href="common.css">
 <style>
-.main{display:flex;gap:28px;max-width:1300px;width:95%;margin:20px auto}
-.panel{flex:1;background:#fff;border:1px solid #e0e0e0;border-radius:16px;padding:28px 22px 20px;box-shadow:0 2px 12px rgba(0,0,0,0.08)}
-.panel h3{font-size:16px;font-weight:600;margin-bottom:4px}
-.panel .sub{font-size:11px;color:#999;margin-bottom:14px}
+.main{display:grid;grid-template-columns:1fr 1fr;gap:24px;max-width:1400px;width:95%;margin:20px auto}
+.panel{background:#fff;border:1px solid var(--c-border-lt);border-radius:16px;padding:24px 20px 18px;box-shadow:0 2px 12px rgba(0,0,0,0.06);min-height:480px}
+.panel-head{display:flex;align-items:baseline;gap:8px;margin-bottom:4px}
+.panel h3{font-size:16px;font-weight:700;margin:0}
+.panel .sub{font-size:11px;color:#999;margin-bottom:16px}
 .chart{width:100%}
 .c-blue{color:var(--c-primary)}.c-purple{color:#3949ab}
+.rank-change{display:inline-block;font-size:10px;margin-left:4px}
+.rank-change.up{color:#2e7d32}
+.rank-change.down{color:#c62828}
+.rank-change.same{color:#999}
+.chart-row{display:flex;align-items:center;gap:8px;padding:2px 0}
+.chart-rank{flex:0 0 20px;text-align:center}
+.chart-name{flex:0 0 150px;font-size:11px;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chart-bar-wrap{flex:1;height:22px;position:relative;display:flex;align-items:stretch}
+.chart-bar-bg{position:absolute;inset:0;background:#f5f5f5;border-radius:4px}
+.chart-bar-fill{position:absolute;top:0;height:100%;border-radius:4px;opacity:0.85;transition:width 0.7s}
+.chart-bar-fill.positive{left:50%;background:#69f0ae}
+.chart-bar-fill.negative{right:50%;background:#ff6e40}
+.chart-bar-center{position:absolute;left:50%;top:0;width:1px;height:100%;background:#e0e0e0;transform:translateX(-0.5px)}
+.chart-val{flex:0 0 65px;font-size:11px;color:#555;text-align:right;font-weight:500}
+.chart-val.positive{color:#2e7d32}
+.chart-val.negative{color:#c62828}
+.tooltip-inner{padding:10px 14px}
+.tooltip-inner b{color:var(--c-blue);font-size:13px}
+.tooltip-inner .detail{font-size:11px;color:#ddd;line-height:1.7}
+//.stats-summary{display:flex;justify-content:center;gap:32px;padding:14px 20px;background:#fff;border-bottom:1px solid var(--c-border-ft)}
+//.stats-summary .item{text-align:center}
+//.stats-summary .num{font-size:20px;font-weight:800;color:var(--c-primary)}
+//.stats-summary .label{font-size:11px;color:#999;margin-top:2px}
+@media(max-width:960px){.main{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div class="header"><h1>合作机构排名对比</h1><p>中国机构 Top 15 vs 中东欧机构 Top 15 | 点击切换时期</p></div>
+<div class="header"><h1>合作机构排名对比</h1><p>基于完整明细数据 | 中国 Top 15 vs 中东欧 Top 15 | 含 125/135 分期排名</p></div>
+<div class="stats-summary" id="statsSummary"></div>
 <div class="controls">
   <button class="mode-btn active" data-mode="total">总体 (125+135)</button>
+  <div class="sep"></div>
   <button class="mode-btn" data-mode="125">125 期间</button>
   <button class="mode-btn" data-mode="135">135 期间</button>
+  <button class="mode-btn delta" data-mode="delta">变化 (125→135)</button>
 </div>
 <div class="main">
-<div class="panel"><h3 class="c-blue">🏛️ 中国机构 Top 15</h3><div class="sub" id="subCN">按 125+135 总发文量排序</div><div class="chart" id="chartCN"></div></div>
-<div class="panel"><h3 class="c-purple">🏛️ 中东欧机构 Top 15</h3><div class="sub" id="subCEE">按 125+135 总发文量排序 | 含国别</div><div class="chart" id="chartCEE"></div></div>
+  <div class="panel" id="panelCN">
+    <div class="panel-head"><h3 class="c-blue">中国机构 Top 15</h3></div>
+    <div class="sub" id="subCN">按 125+135 总发文量排序</div>
+    <div class="chart" id="chartCN"></div>
+  </div>
+  <div class="panel" id="panelCEE">
+    <div class="panel-head"><h3 class="c-purple">中东欧机构 Top 15</h3></div>
+    <div class="sub" id="subCEE">按 125+135 总发文量排序 · 含国别</div>
+    <div class="chart" id="chartCEE"></div>
+  </div>
 </div>
 <div class="tooltip" id="tooltip"></div>
 <script>
@@ -104,99 +173,117 @@ const CN = __CN_DATA__;
 const CEE = __CEE_DATA__;
 let currentMode = "total";
 
-function getVal(d) {
+function getVal(d){
   if(currentMode==="125") return d.p125;
   if(currentMode==="135") return d.p135;
-  return d.p125 + d.p135;
+  if(currentMode==="delta") return d.delta;
+  return d.p125+d.p135;
+}
+function getRank(d){
+  if(currentMode==="125") return d.rank_125;
+  if(currentMode==="135") return d.rank_135;
+  return d.rank_total;
+}
+function getRankLabel(d){
+  var rc=d.rank_change;
+  if(rc>0) return {cls:"up",txt:"↑"+rc};
+  if(rc<0) return {cls:"down",txt:"↓"+Math.abs(rc)};
+  return {cls:"same",txt:"−"};
 }
 
-function drawBar(containerId, data, accentColor, showCountry) {
-  const c = d3.select("#"+containerId);
-  const w = c.node().clientWidth;
-  const barH=26, gap=6, top=8, bot=16;
-  const sorted = [...data].sort((a,b)=>getVal(b)-getVal(a));
-  const h = sorted.length*(barH+gap)+top+bot;
-  const svg = c.append("svg").attr("width",w).attr("height",h);
-  const maxV = d3.max(sorted, d=>getVal(d)) || 1;
-  const x = d3.scaleLinear().domain([0, maxV*1.12]).range([0, w-220]);
+// d3.select("#statsSummary").html(
+//   '<div class="item"><div class="num">'+CN.length+'</div><div class="label">中国机构(全量)</div></div>'+
+//   '<div class="item"><div class="num">'+CEE.length+'</div><div class="label">中东欧机构(全量)</div></div>'+
+//   '<div class="item"><div class="num">'+d3.sum(CN,d=>d.p125+d.p135).toLocaleString()+'</div><div class="label">中国总论文</div></div>'+
+//   '<div class="item"><div class="num">'+d3.sum(CEE,d=>d.p125+d.p135).toLocaleString()+'</div><div class="label">中东欧总论文</div></div>'
+// );
 
-  const rows = svg.selectAll("g").data(sorted).join("g")
-    .attr("transform",(d,i)=>`translate(0,${top+i*(barH+gap)})`);
+function drawPanel(containerId, data, accentColor, showCountry){
+  var c=d3.select("#"+containerId);
+  var isDelta=currentMode==="delta";
+  var sorted=[...data].sort((a,b)=>getVal(b)-getVal(a));
+  var vals=sorted.map(d=>getVal(d));
+  var maxV=isDelta?d3.max(vals.map(Math.abs))||1:d3.max(vals)||1;
 
-  // rank number
-  rows.append("text").attr("x",0).attr("y",barH/2+4).attr("text-anchor","start")
-    .style("fill","#8899aa").style("font-size","12px").style("font-weight","700")
-    .text((d,i)=>i+1);
+  c.selectAll(".chart-row").data(sorted).join(
+    enter=>{
+      var row=enter.append("div").attr("class","chart-row").style("opacity",0);
+      row.transition().duration(400).delay((d,i)=>i*40).style("opacity",1);
 
-  // name (with country for CEE)
-  rows.append("text").attr("x",28).attr("y",barH/2+4).attr("text-anchor","start")
-    .style("fill","#333").style("font-size","11px")
-    .text(d => {
-      let n = d.name.length>18 ? d.name.slice(0,16)+".." : d.name;
-      if(showCountry && d.country) n += "  "+d.country;
-      return n;
-    });
+      var rk=row.append("span").attr("class","chart-rank");
+      if(isDelta){
+        rk.append("span").attr("class",function(){return ""}).style("display","none");
+      }else{
+        rk.append("span").attr("class",d=>"rank-badge"+(getRank(d)<=3?" top"+getRank(d) :"")).text((d,i)=>i+1);
+      }
 
-  // bg bar
-  rows.append("rect").attr("x",195).attr("y",0).attr("width",w-220).attr("height",barH)
-    .attr("rx",3).attr("fill","#f5f5f5");
+      var nm=row.append("span").attr("class","chart-name")
+        .text(d=>{var n=d.name.length>12?d.name.slice(0,11)+"..":d.name;if(showCountry&&d.country)n+=" ("+d.country+")";return n;});
+      if(isDelta){
+        var rcSpan=nm.append("span").attr("class",d=>"rank-change "+getRankLabel(d).cls).style("margin-left","3px");
+        rcSpan.text(d=>getRankLabel(d).txt);
+      }
 
-  // value bar
-  rows.append("rect").attr("x",195).attr("y",0).attr("width",0).attr("height",barH).attr("rx",3)
-    .attr("fill",accentColor).attr("opacity",0.8)
-    .transition().duration(800).delay((d,i)=>i*50)
-    .attr("width",d=>Math.max(x(getVal(d)),3));
+      var bw=row.append("span").attr("class","chart-bar-wrap");
+      bw.append("span").attr("class","chart-bar-bg");
+      if(isDelta){
+        bw.append("span").attr("class","chart-bar-center");
+        var barPct=d=>(Math.abs(getVal(d))/maxV*50)+"%";
+        var positiveFill=bw.filter(d=>getVal(d)>=0).append("span").attr("class","chart-bar-fill positive").style("width","0%");
+        var negativeFill=bw.filter(d=>getVal(d)<0).append("span").attr("class","chart-bar-fill negative").style("width","0%");
+        setTimeout(function(){
+          positiveFill.style("width",barPct);
+          negativeFill.style("width",barPct);
+        },50);
+      }else{
+        bw.append("span").attr("class","chart-bar-fill").style("background",accentColor).style("left","0").style("width",d=>(getVal(d)/maxV*100)+"%");
+      }
 
-  // value text
-  rows.append("text").attr("x",d=>200+Math.max(x(getVal(d)),3)+6).attr("y",barH/2+5)
-    .style("fill","#555").style("font-size","10px")
-    .text(d=>{
-      if(currentMode==="125") return d.p125+" 篇";
-      if(currentMode==="135") return d.p135+" 篇";
-      return (d.p125+d.p135)+" 篇";
-    });
+      var valText=isDelta?(d=>(getVal(d)>=0?"+"+getVal(d):getVal(d)).toLocaleString()+" 篇"):(d=>getVal(d).toLocaleString()+" 篇");
+      row.append("span").attr("class",d=>"chart-val"+(isDelta?(getVal(d)>=0?" positive":" negative"):"")).text(valText);
 
-
+      row.on("mouseenter",function(e,d){
+        d3.select(this).select(".chart-bar-fill").style("opacity",1);
+        var html='<div class="tooltip-inner"><b>'+d.name+'</b>'+(d.name_en?'<br><span style="color:#aaa;font-size:10px">'+d.name_en+'</span>':'');
+        if(showCountry&&d.country) html+='<br><span style="color:#aaa;font-size:10px">'+d.country+'</span>';
+        html+='<div class="detail">'+
+          '125: '+d.p125.toLocaleString()+' 篇 (第'+d.rank_125+')<br>'+
+          '135: '+d.p135.toLocaleString()+' 篇 (第'+d.rank_135+')<br>'+
+          '合计: '+(d.p125+d.p135).toLocaleString()+' 篇<br>'+
+          '变化: '+(d.delta>=0?'+':'')+d.delta+' 篇<br>'+
+          '排名: '+getRankLabel(d).txt;
+        d3.select("#tooltip").html(html).style("opacity",1);
+      })
+      .on("mousemove",function(e){d3.select("#tooltip").style("left",(e.pageX+14)+"px").style("top",(e.pageY-10)+"px")})
+      .on("mouseleave",function(){
+        d3.select(this).select(".chart-bar-fill").style("opacity",0.85);
+        d3.select("#tooltip").style("opacity",0);
+      });
+    }
+  );
 }
 
-function renderAll() {
+function renderAll(){
+  var modeLabels={"total":"125+135","125":"125","135":"135","delta":"变化量 (125→135)"};
+  var isDelta=currentMode==="delta";
+  d3.select("#subCN").text((isDelta?"按变化量排序 | ":"按 "+modeLabels[currentMode]+" 排序 | ")+"Top 15 · 共 "+CN.length+" 个");
+  d3.select("#subCEE").text((isDelta?"按变化量排序 | ":"按 "+modeLabels[currentMode]+" 排序 | ")+"含国别 | Top 15 · 共 "+CEE.length+" 个");
+  var cnColor=isDelta?"#69f0ae":"#4fc3f7";
+  var ceeColor=isDelta?"#69f0ae":"#7c4dff";
+  drawPanel("chartCN", CN, cnColor, false);
+  drawPanel("chartCEE", CEE, ceeColor, true);
+}
+
+d3.selectAll(".mode-btn").on("click",function(){
+  currentMode=this.dataset.mode;
+  d3.selectAll(".mode-btn").classed("active",function(){return this.dataset.mode===currentMode});
+  d3.selectAll(".mode-btn.delta").classed("active",currentMode==="delta");
   d3.select("#chartCN").selectAll("*").remove();
   d3.select("#chartCEE").selectAll("*").remove();
-  const modeLabels = {"total":"125+135","125":"125","135":"135"};
-  d3.select("#subCN").text("按 "+modeLabels[currentMode]+" 排序 | Top 15");
-  d3.select("#subCEE").text("按 "+modeLabels[currentMode]+" 排序 | 含国别 | Top 15");
-  drawBar("chartCN", CN, "#4fc3f7", false);
-  drawBar("chartCEE", CEE, "#7c4dff", true);
-}
-
-// Mode switching
-d3.selectAll(".mode-btn").on("click",function(){
-  currentMode = this.dataset.mode;
-  d3.selectAll(".mode-btn").classed("active", function(){return this.dataset.mode===currentMode});
   renderAll();
 });
 
 renderAll();
-
-// Tooltip delegation
-document.addEventListener("mouseover", function(e) {
-  const target = d3.select(e.target);
-  if(target.node() && target.node().tagName==="rect" && target.attr("fill")!=="#f5f5f5") {
-    const d = target.datum();
-    if(d && d.name) {
-      target.attr("opacity",1);
-      d3.select("#tooltip").style("opacity",1).html(`<b>${d.name}</b><br>125: ${d.p125} 篇 (排第${d.rank_125})<br>135: ${d.p135} 篇 (排第${d.rank_135})<br>合计: ${d.p135+d.p125} 篇`)
-        .style("left",(e.pageX+14)+"px").style("top",(e.pageY-10)+"px");
-    }
-  }
-});
-document.addEventListener("mouseout", function(e) {
-  const target = d3.select(e.target);
-  if(target.node() && target.node().tagName==="rect" && target.attr("fill")!=="#f5f5f5") {
-    target.attr("opacity",0.8);
-    d3.select("#tooltip").style("opacity",0);
-  }
-});
 </script>
 </body>
 </html>"""
@@ -204,5 +291,5 @@ document.addEventListener("mouseout", function(e) {
 html = html.replace("__CN_DATA__", json.dumps(cn_top, ensure_ascii=False))
 html = html.replace("__CEE_DATA__", json.dumps(cee_top, ensure_ascii=False))
 write_html(os.path.join(OUTPUT_DIR, "institution_visualization.html"), html, "机构排名")
-print(f"  中国机构: {len(cn_top)}, 中东欧机构: {len(cee_top)}")
+print(f"  中国机构 Top 15: {len(cn_top)}, 中东欧机构 Top 15: {len(cee_top)}")
 print("Done.")

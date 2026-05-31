@@ -42,10 +42,12 @@ function drawChart(){
   const data=[...CEE_DATA].sort((a,b)=>getVal(b)-getVal(a));
   const vals=data.map(d=>getVal(d));
   const absMax=d3.max(vals.map(Math.abs))||1;
-  const w=560,barH=28,gap=7,top=8,bot=20;
+  const w=580,barH=28,gap=7,top=8,bot=20;
   const h=data.length*(barH+gap)+top+bot;
   const svg=d3.select("#barChart").append("svg").attr("width",w).attr("height",h);
-  const cx=100;
+  const cx=130;
+  const badgeR=10;
+  const badgeColors=["#ffd740","#b0bec5","#bcaaa4"];
   let xS;
   if(currentMode==="delta") xS=d3.scaleLinear().domain([-absMax*1.15,absMax*1.15]).range([0,w-cx-80]);
   else xS=d3.scaleLinear().domain([0,(d3.max(vals)||1)*1.12]).range([0,w-cx-80]);
@@ -69,11 +71,12 @@ function drawChart(){
     .transition().duration(700).delay((d,i)=>i*45)
     .attr("width",d=>currentMode==="delta"?Math.abs(xS(getVal(d))-xS(0)):Math.max(xS(getVal(d)),3)).attr("opacity",0.85);
 
-  // names
-  svg.selectAll("text.nl").data(data).join("text").attr("class","nl")
-    .attr("x",cx-6).attr("y",(d,i)=>top+i*(barH+gap)+barH/2+4)
-    .attr("text-anchor","end").style("fill","#333").style("font-size","13px").style("font-weight","700")
-    .text(d=>d.name_cn);
+  // rank badges + names
+  const nameG=svg.selectAll("g.nm").data(data).join("g").attr("class","nm")
+    .attr("transform",(d,i)=>`translate(${cx-12},${top+i*(barH+gap)+barH/2})`);
+  nameG.append("circle").attr("r",badgeR).attr("fill",(d,i)=>i<3?badgeColors[i]:"#e0e0e0").attr("stroke",(d,i)=>i<3?badgeColors[i]:"none").attr("stroke-width",1);
+  nameG.append("text").attr("text-anchor","middle").attr("dy","0.38em").style("fill",(d,i)=>i<3?"#0a0e27":"#fff").style("font-size","10px").style("font-weight","700").text((d,i)=>i+1);
+  nameG.append("text").attr("x",-badgeR-6).attr("text-anchor","end").attr("dy","0.38em").style("fill","#333").style("font-size","13px").style("font-weight","700").text(d=>d.name_cn);
 
   // values
   svg.selectAll("text.vl").data(data).join("text").attr("class","vl")

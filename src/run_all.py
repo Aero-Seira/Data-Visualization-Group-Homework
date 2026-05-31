@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-一键运行：依次生成全部 6 个 HTML 可视化文件。
+一键运行：依次生成全部 HTML 可视化文件。
 
 用法:
-    python run_all.py              # 生成全部 6 个 HTML
+    python run_all.py              # 生成全部 HTML
     python run_all.py --skip-map   # 跳过地图（较慢）
     python run_all.py --ai         # 同时重新运行 AI 学科关联分析
 """
